@@ -1,95 +1,20 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
 import { AssignmentDashboard } from "@/components/assignment-dashboard"
+import { useApp } from "@/lib/app-context"
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
+export default function DashboardPage() {
+  const { data } = useApp()
 
-  // Fetch dashboard data
-  const [
-    { data: pendingPQRS },
-    { data: activeAssignments },
-    { data: availablePersonnel },
-    { data: availableVehicles },
-    { data: zones },
-    { data: recentAssignments },
-  ] = await Promise.all([
-    supabase
-      .from("pqrs_requests")
-      .select(`
-        *,
-        zones (name, code, priority_level)
-      `)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false }),
-
-    supabase
-      .from("assignments")
-      .select(`
-        *,
-        pqrs_requests (
-          request_number,
-          title,
-          category,
-          priority,
-          zones (name)
-        ),
-        personnel (
-          first_name,
-          last_name,
-          personnel_roles (name)
-        ),
-        vehicles (
-          license_plate,
-          vehicle_types (name)
-        )
-      `)
-      .eq("status", "active")
-      .order("assigned_at", { ascending: false }),
-
-    supabase
-      .from("personnel")
-      .select(`
-        *,
-        personnel_roles (name, department),
-        zones (name)
-      `)
-      .eq("status", "available"),
-
-    supabase
-      .from("vehicles")
-      .select(`
-        *,
-        vehicle_types (name, category),
-        zones (name)
-      `)
-      .eq("status", "available"),
-
-    supabase.from("zones").select("*").order("name"),
-
-    supabase
-      .from("assignments")
-      .select(`
-        *,
-        pqrs_requests (
-          request_number,
-          title,
-          category,
-          priority
-        ),
-        personnel (
-          first_name,
-          last_name
-        ),
-        vehicles (
-          license_plate
-        )
-      `)
-      .order("assigned_at", { ascending: false })
-      .limit(10),
-  ])
+  // Filter data for dashboard
+  const pendingPQRS = data.pqrs.filter(pqrs => pqrs.status === "pending")
+  const activeAssignments = data.assignments.filter(assignment => assignment.status === "active")
+  const availablePersonnel = data.personnel.filter(person => person.status === "available")
+  const availableVehicles = data.vehicles.filter(vehicle => vehicle.status === "available")
+  const recentAssignments = data.assignments.slice(-10) // Last 10 assignments
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -107,12 +32,12 @@ export default async function DashboardPage() {
       </div>
 
       <AssignmentDashboard
-        pendingPQRS={pendingPQRS || []}
-        activeAssignments={activeAssignments || []}
-        availablePersonnel={availablePersonnel || []}
-        availableVehicles={availableVehicles || []}
-        zones={zones || []}
-        recentAssignments={recentAssignments || []}
+        pendingPQRS={pendingPQRS}
+        activeAssignments={activeAssignments}
+        availablePersonnel={availablePersonnel}
+        availableVehicles={availableVehicles}
+        zones={data.zones}
+        recentAssignments={recentAssignments}
       />
     </div>
   )

@@ -1,13 +1,13 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
 import { ZoneManagement } from "@/components/zone-management"
+import { useApp } from "@/lib/app-context"
 
-export default async function ZonesPage() {
-  const supabase = await createClient()
-
-  const { data: zones } = await supabase.from("zones").select("*").order("name")
+export default function ZonesPage() {
+  const { data, addZone } = useApp()
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -24,7 +24,7 @@ export default async function ZonesPage() {
         <p className="text-gray-600">Administra las zonas y distritos de la ciudad para optimizar las asignaciones</p>
       </div>
 
-      <ZoneManagement initialZones={zones || []} />
+      <ZoneManagement initialZones={data.zones} />
     </div>
   )
 }

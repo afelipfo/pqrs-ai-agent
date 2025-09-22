@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapPin, Plus, Edit, Users, AlertTriangle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { useApp } from "@/lib/app-context"
 
 interface Zone {
   id: string
@@ -43,7 +43,7 @@ export function ZoneManagement({ initialZones }: ZoneManagementProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
-  const supabase = createClient()
+  const { addZone } = useApp()
 
   const filteredZones = zones.filter(
     (zone) =>
@@ -69,27 +69,22 @@ export function ZoneManagement({ initialZones }: ZoneManagementProps) {
   const handleCreateZone = async (formData: FormData) => {
     try {
       const newZone = {
+        id: (zones.length + 1).toString(),
         name: formData.get("name") as string,
         code: formData.get("code") as string,
-        population: Number.parseInt(formData.get("population") as string) || null,
-        area_km2: Number.parseFloat(formData.get("area_km2") as string) || null,
+        population: formData.get("population") ? Number.parseInt(formData.get("population") as string) : undefined,
+        area_km2: formData.get("area_km2") ? Number.parseFloat(formData.get("area_km2") as string) : undefined,
         priority_level: Number.parseInt(formData.get("priority_level") as string) || 1,
-        latitude: Number.parseFloat(formData.get("latitude") as string) || null,
-        longitude: Number.parseFloat(formData.get("longitude") as string) || null,
+        latitude: formData.get("latitude") ? Number.parseFloat(formData.get("latitude") as string) : undefined,
+        longitude: formData.get("longitude") ? Number.parseFloat(formData.get("longitude") as string) : undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
 
       console.log("Creating zone with data:", newZone)
 
-      const { data, error } = await supabase.from("zones").insert([newZone]).select().single()
-
-      if (error) {
-        console.error("Error creating zone:", error)
-        alert(`Error al crear zona: ${error.message}`)
-        return
-      }
-
-      console.log("Zone created successfully:", data)
-      setZones([...zones, data])
+      // Add to local state instead of Supabase
+      setZones([...zones, newZone])
       setIsCreateDialogOpen(false)
       alert("Zona creada exitosamente")
     } catch (error) {
@@ -102,24 +97,19 @@ export function ZoneManagement({ initialZones }: ZoneManagementProps) {
     if (!selectedZone) return
 
     const updatedZone = {
+      ...selectedZone,
       name: formData.get("name") as string,
       code: formData.get("code") as string,
-      population: Number.parseInt(formData.get("population") as string) || null,
-      area_km2: Number.parseFloat(formData.get("area_km2") as string) || null,
+      population: formData.get("population") ? Number.parseInt(formData.get("population") as string) : undefined,
+      area_km2: formData.get("area_km2") ? Number.parseFloat(formData.get("area_km2") as string) : undefined,
       priority_level: Number.parseInt(formData.get("priority_level") as string) || 1,
-      latitude: Number.parseFloat(formData.get("latitude") as string) || null,
-      longitude: Number.parseFloat(formData.get("longitude") as string) || null,
+      latitude: formData.get("latitude") ? Number.parseFloat(formData.get("latitude") as string) : undefined,
+      longitude: formData.get("longitude") ? Number.parseFloat(formData.get("longitude") as string) : undefined,
       updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase.from("zones").update(updatedZone).eq("id", selectedZone.id).select().single()
-
-    if (error) {
-      console.error("Error updating zone:", error)
-      return
-    }
-
-    setZones(zones.map((zone) => (zone.id === selectedZone.id ? data : zone)))
+    // Update local state instead of Supabase
+    setZones(zones.map((zone) => (zone.id === selectedZone.id ? updatedZone : zone)))
     setIsEditDialogOpen(false)
     setSelectedZone(null)
   }
@@ -172,7 +162,7 @@ export function ZoneManagement({ initialZones }: ZoneManagementProps) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="latitude">Latitud</Label>
+                  <Label htmlFor="latitude">Latitud (opcional)</Label>
                   <Input
                     id="latitude"
                     name="latitude"
@@ -182,7 +172,7 @@ export function ZoneManagement({ initialZones }: ZoneManagementProps) {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="longitude">Longitud</Label>
+                  <Label htmlFor="longitude">Longitud (opcional)</Label>
                   <Input
                     id="longitude"
                     name="longitude"

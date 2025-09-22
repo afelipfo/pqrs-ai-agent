@@ -83,34 +83,29 @@ export function PersonnelManagement({ initialPersonnel, roles, zones }: Personne
   const handleCreatePersonnel = async (formData: FormData) => {
     try {
       const newPersonnel = {
+        id: (personnel.length + 1).toString(),
         employee_id: formData.get("employee_id") as string,
         first_name: formData.get("first_name") as string,
         last_name: formData.get("last_name") as string,
         role_id: formData.get("role_id") as string,
         status: formData.get("status") as string,
-        current_zone_id: formData.get("current_zone_id") as string || null,
-        shift_start: formData.get("shift_start") as string || null,
-        shift_end: formData.get("shift_end") as string || null,
-        latitude: Number.parseFloat(formData.get("latitude") as string) || null,
-        longitude: Number.parseFloat(formData.get("longitude") as string) || null,
+        current_zone_id: formData.get("current_zone_id") as string || undefined,
+        shift_start: formData.get("shift_start") as string || undefined,
+        shift_end: formData.get("shift_end") as string || undefined,
+        latitude: formData.get("latitude") ? Number.parseFloat(formData.get("latitude") as string) : undefined,
+        longitude: formData.get("longitude") ? Number.parseFloat(formData.get("longitude") as string) : undefined,
+        certifications: null,
+        contact_info: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        personnel_roles: roles.find(r => r.id === formData.get("role_id")),
+        zones: zones.find(z => z.id === formData.get("current_zone_id")),
       }
 
       console.log("Creating personnel with data:", newPersonnel)
 
-      const { data, error } = await supabase.from("personnel").insert([newPersonnel]).select(`
-        *,
-        personnel_roles (name, department),
-        zones (name)
-      `).single()
-
-      if (error) {
-        console.error("Error creating personnel:", error)
-        alert(`Error al crear personal: ${error.message}`)
-        return
-      }
-
-      console.log("Personnel created successfully:", data)
-      setPersonnel([...personnel, data])
+      // Add to local state instead of Supabase
+      setPersonnel([...personnel, newPersonnel])
       setIsCreateDialogOpen(false)
       alert("Personal creado exitosamente")
     } catch (error) {
@@ -123,36 +118,24 @@ export function PersonnelManagement({ initialPersonnel, roles, zones }: Personne
     if (!selectedPersonnel) return
 
     const updatedPersonnel = {
+      ...selectedPersonnel,
       employee_id: formData.get("employee_id") as string,
       first_name: formData.get("first_name") as string,
       last_name: formData.get("last_name") as string,
       role_id: formData.get("role_id") as string,
       status: formData.get("status") as string,
-      current_zone_id: formData.get("current_zone_id") as string || null,
-      shift_start: formData.get("shift_start") as string || null,
-      shift_end: formData.get("shift_end") as string || null,
-      latitude: Number.parseFloat(formData.get("latitude") as string) || null,
-      longitude: Number.parseFloat(formData.get("longitude") as string) || null,
+      current_zone_id: formData.get("current_zone_id") as string || undefined,
+      shift_start: formData.get("shift_start") as string || undefined,
+      shift_end: formData.get("shift_end") as string || undefined,
+      latitude: formData.get("latitude") ? Number.parseFloat(formData.get("latitude") as string) : undefined,
+      longitude: formData.get("longitude") ? Number.parseFloat(formData.get("longitude") as string) : undefined,
       updated_at: new Date().toISOString(),
+      personnel_roles: roles.find(r => r.id === formData.get("role_id")),
+      zones: zones.find(z => z.id === formData.get("current_zone_id")),
     }
 
-    const { data, error } = await supabase
-      .from("personnel")
-      .update(updatedPersonnel)
-      .eq("id", selectedPersonnel.id)
-      .select(`
-        *,
-        personnel_roles (name, department),
-        zones (name)
-      `)
-      .single()
-
-    if (error) {
-      console.error("Error updating personnel:", error)
-      return
-    }
-
-    setPersonnel(personnel.map((person) => (person.id === selectedPersonnel.id ? data : person)))
+    // Update local state instead of Supabase
+    setPersonnel(personnel.map((person) => (person.id === selectedPersonnel.id ? updatedPersonnel : person)))
     setIsEditDialogOpen(false)
     setSelectedPersonnel(null)
   }
@@ -257,7 +240,7 @@ export function PersonnelManagement({ initialPersonnel, roles, zones }: Personne
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="latitude">Latitud</Label>
+                  <Label htmlFor="latitude">Latitud (opcional)</Label>
                   <Input
                     id="latitude"
                     name="latitude"
@@ -267,7 +250,7 @@ export function PersonnelManagement({ initialPersonnel, roles, zones }: Personne
                   />
                 </div>
                 <div>
-                  <Label htmlFor="longitude">Longitud</Label>
+                  <Label htmlFor="longitude">Longitud (opcional)</Label>
                   <Input
                     id="longitude"
                     name="longitude"

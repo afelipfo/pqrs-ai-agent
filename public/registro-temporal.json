@@ -1,0 +1,206 @@
+{
+  "zones": [
+    {
+      "id": 1,
+      "name": "Centro",
+      "district": "La Candelaria",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "description": "Zona central de Medellín"
+    },
+    {
+      "id": 2,
+      "name": "Poblado",
+      "district": "El Poblado",
+      "coordinates": {
+        "lat": 6.2099,
+        "lng": -75.5671
+      },
+      "description": "Zona residencial y comercial"
+    },
+    {
+      "id": 3,
+      "name": "Envigado",
+      "district": "Envigado",
+      "coordinates": {
+        "lat": 6.1759,
+        "lng": -75.5917
+      },
+      "description": "Municipio vecino"
+    }
+  ],
+  "assignments": [
+    {
+      "id": 1,
+      "title": "Inspección de Seguridad",
+      "description": "Revisar condiciones de seguridad en zona Centro",
+      "assigned_to": "Juan Pérez",
+      "zone": "Centro",
+      "priority": "Alta",
+      "status": "En Progreso",
+      "created_at": "2024-09-18T10:00:00Z"
+    },
+    {
+      "id": 2,
+      "title": "Mantenimiento Vehicular",
+      "description": "Servicio de mantenimiento para vehículo #001",
+      "assigned_to": "María González",
+      "zone": "Poblado",
+      "priority": "Media",
+      "status": "Pendiente",
+      "created_at": "2024-09-18T09:00:00Z"
+    }
+  ],
+  "pqrs": [
+    {
+      "id": 1,
+      "type": "Queja",
+      "title": "Iluminación deficiente",
+      "description": "La iluminación en la calle principal está fallando",
+      "zone": "Centro",
+      "status": "Abierta",
+      "created_at": "2024-09-17T15:30:00Z",
+      "priority": "Media"
+    },
+    {
+      "id": 2,
+      "type": "Petición",
+      "title": "Instalación de semáforo",
+      "description": "Solicitud para instalar semáforo en intersección peligrosa",
+      "zone": "Poblado",
+      "status": "En Revisión",
+      "created_at": "2024-09-16T12:00:00Z",
+      "priority": "Alta"
+    },
+    {
+      "id": 3,
+      "type": "Sugerencia",
+      "title": "Mejora en transporte público",
+      "description": "Propuesta para nuevas rutas de buses",
+      "zone": "Envigado",
+      "status": "Cerrada",
+      "created_at": "2024-09-15T08:00:00Z",
+      "priority": "Baja"
+    }
+  ],
+  "personnel": [
+    {
+      "id": 1,
+      "name": "Juan Pérez",
+      "role": "Inspector de Seguridad",
+      "zone": "Centro",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "status": "Activo",
+      "phone": "+57 300 123 4567"
+    },
+    {
+      "id": 2,
+      "name": "María González",
+      "role": "Técnica de Mantenimiento",
+      "zone": "Poblado",
+      "coordinates": {
+        "lat": 6.2099,
+        "lng": -75.5671
+      },
+      "status": "Activo",
+      "phone": "+57 300 234 5678"
+    },
+    {
+      "id": 3,
+      "name": "Carlos Rodríguez",
+      "role": "Supervisor",
+      "zone": "Envigado",
+      "coordinates": {
+        "lat": 6.1759,
+        "lng": -75.5917
+      },
+      "status": "Activo",
+      "phone": "+57 300 345 6789"
+    }
+  ],
+  "vehicles": [
+    {
+      "id": 1,
+      "plate": "ABC-123",
+      "type": "Camioneta",
+      "zone": "Centro",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "status": "En Servicio",
+      "driver": "Juan Pérez"
+    },
+    {
+      "id": 2,
+      "plate": "DEF-456",
+      "type": "Moto",
+      "zone": "Poblado",
+      "coordinates": {
+        "lat": 6.2099,
+        "lng": -75.5671
+      },
+      "status": "Disponible",
+      "driver": null
+    },
+    {
+      "id": 3,
+      "plate": "GHI-789",
+      "type": "Camión",
+      "zone": "Envigado",
+      "coordinates": {
+        "lat": 6.1759,
+        "lng": -75.5917
+      },
+      "status": "En Mantenimiento",
+      "driver": "Carlos Rodríguez"
+    }
+  ],
+  "map_markers": [
+    {
+      "id": 1,
+      "type": "zone",
+      "name": "Centro",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "color": "red"
+    },
+    {
+      "id": 2,
+      "type": "personnel",
+      "name": "Juan Pérez",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "color": "blue"
+    },
+    {
+      "id": 3,
+      "type": "vehicle",
+      "name": "ABC-123",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "color": "green"
+    },
+    {
+      "id": 4,
+      "type": "pqrs",
+      "name": "Queja Iluminación",
+      "coordinates": {
+        "lat": 6.2442,
+        "lng": -75.5812
+      },
+      "color": "yellow"
+    }
+  ]
+}

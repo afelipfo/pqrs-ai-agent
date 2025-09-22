@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/lib/supabase/client"
+import { useApp } from "@/lib/app-context"
 
 // Dynamically import the entire map component to avoid SSR issues
 const MapComponent = dynamic(() => import('./map-component'), { ssr: false })
@@ -17,35 +17,57 @@ interface MapData {
 }
 
 export function GeographicalMap() {
-  const [mapData, setMapData] = useState<MapData>({ zones: [], personnel: [], vehicles: [], pqrs: [] })
+  const { data } = useApp()
   const [isClient, setIsClient] = useState(false)
-
-  const supabase = createClient()
 
   useEffect(() => {
     setIsClient(true)
-    loadMapData()
   }, [])
 
-  const loadMapData = async () => {
-    try {
-      const [zonesRes, personnelRes, vehiclesRes, pqrsRes] = await Promise.all([
-        supabase.from("zones").select("id, name, latitude, longitude, priority_level").not("latitude", "is", null),
-        supabase.from("personnel").select("id, first_name, last_name, latitude, longitude, personnel_roles(name), status").not("latitude", "is", null),
-        supabase.from("vehicles").select("id, license_plate, latitude, longitude, vehicle_types(name), status").not("latitude", "is", null),
-        supabase.from("pqrs_requests").select("id, title, latitude, longitude, priority, type").not("latitude", "is", null)
-      ])
-
-      setMapData({
-        zones: zonesRes.data || [],
-        personnel: personnelRes.data || [],
-        vehicles: vehiclesRes.data || [],
-        pqrs: pqrsRes.data || []
-      })
-    } catch (error) {
-      console.error("Error loading map data:", error)
-    }
+  // Transform global data for map display
+  const mapData: MapData = {
+    zones: data.zones.map((zone: any) => ({
+      id: zone.id,
+      name: zone.name,
+      latitude: zone.latitude,
+      longitude: zone.longitude,
+      priority_level: zone.priority_level,
+    })),
+    personnel: data.personnel.map((person: any) => ({
+      id: person.id,
+      first_name: person.first_name,
+      last_name: person.last_name,
+      latitude: person.latitude || 6.2442, // Default to Medellín center if no coords
+      longitude: person.longitude || -75.5812,
+      personnel_roles: person.personnel_roles,
+      status: person.status,
+    })),
+    vehicles: data.vehicles
+      .filter(vehicle => vehicle.latitude && vehicle.longitude)
+      .map((vehicle: any) => ({
+        id: vehicle.id,
+        license_plate: vehicle.license_plate,
+        latitude: vehicle.latitude,
+        longitude: vehicle.longitude,
+        vehicle_types: vehicle.vehicle_types,
+        status: vehicle.status,
+      })),
+    pqrs: data.pqrs
+      .filter(pqrs => pqrs.zones?.latitude && pqrs.zones?.longitude)
+      .map((pqrs: any) => ({
+        id: pqrs.id,
+        title: pqrs.title,
+        latitude: pqrs.zones.latitude,
+        longitude: pqrs.zones.longitude,
+        priority: pqrs.priority,
+        type: pqrs.type,
+        status: pqrs.status,
+      }))
   }
+
+
+  // The map will automatically update when global data changes
+  // No need for manual location updates since we use global context
 
   if (!isClient) {
     return (
@@ -118,7 +140,7 @@ export function GeographicalMap() {
         </CardHeader>
         <CardContent>
           <div className="h-96 rounded-lg overflow-hidden border">
-            <MapComponent mapData={mapData} />
+            <MapComponent key={JSON.stringify(mapData)} mapData={mapData} />
           </div>
         </CardContent>
       </Card>

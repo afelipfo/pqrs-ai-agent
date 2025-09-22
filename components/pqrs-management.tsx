@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   CheckCircle,
   BarChart3,
+  Eye,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
@@ -60,9 +61,10 @@ interface Zone {
 interface PQRSManagementProps {
   initialPQRS: PQRSRequest[]
   zones: Zone[]
+  onReviewPQRS?: (pqrs: PQRSRequest) => void
 }
 
-export function PQRSManagement({ initialPQRS, zones }: PQRSManagementProps) {
+export function PQRSManagement({ initialPQRS, zones, onReviewPQRS }: PQRSManagementProps) {
   const [pqrsRequests, setPqrsRequests] = useState<PQRSRequest[]>(initialPQRS)
   const [filteredPQRS, setFilteredPQRS] = useState<PQRSRequest[]>(initialPQRS)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -152,38 +154,27 @@ export function PQRSManagement({ initialPQRS, zones }: PQRSManagementProps) {
   const handleCreatePQRS = async (formData: FormData) => {
     try {
       const newPQRS = {
+        id: (pqrsRequests.length + 1).toString(),
         request_number: `PQRS-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`,
         type: formData.get("type") as string,
         category: formData.get("category") as string,
         title: formData.get("title") as string,
         description: formData.get("description") as string,
         priority: formData.get("priority") as string,
+        status: "pending",
         zone_id: formData.get("zone_id") as string,
-        citizen_info: {
-          name: formData.get("citizen_name") as string,
-          email: formData.get("citizen_email") as string,
-          phone: formData.get("citizen_phone") as string,
-        },
+        zones: zones.find((z) => z.id === formData.get("zone_id")),
+        personnel: undefined,
+        vehicles: undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
 
       console.log("Creating PQRS with data:", newPQRS)
 
-      const { data, error } = await supabase.from("pqrs_requests").insert([newPQRS]).select().single()
-
-      if (error) {
-        console.error("Error creating PQRS:", error)
-        alert(`Error al crear PQRS: ${error.message}`)
-        return
-      }
-
-      console.log("PQRS created successfully:", data)
-
-      // Add zone information to the new PQRS
-      const zone = zones.find((z) => z.id === newPQRS.zone_id)
-      const pqrsWithZone = { ...data, zones: zone }
-
-      setPqrsRequests([pqrsWithZone, ...pqrsRequests])
-      setFilteredPQRS([pqrsWithZone, ...filteredPQRS])
+      // Add to local state instead of Supabase
+      setPqrsRequests([newPQRS, ...pqrsRequests])
+      setFilteredPQRS([newPQRS, ...filteredPQRS])
       setIsCreateDialogOpen(false)
       alert("PQRS creada exitosamente")
     } catch (error) {
@@ -623,7 +614,20 @@ export function PQRSManagement({ initialPQRS, zones }: PQRSManagementProps) {
                       </span>
                     )}
                   </div>
-                  <Badge variant="outline">{pqrs.category}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{pqrs.category}</Badge>
+                    {pqrs.status === "in_progress" && onReviewPQRS && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onReviewPQRS(pqrs)}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        Revisar
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

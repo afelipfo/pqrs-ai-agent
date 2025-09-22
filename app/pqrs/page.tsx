@@ -1,24 +1,22 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
 import { PQRSManagement } from "@/components/pqrs-management"
+import { useApp } from "@/lib/app-context"
+import { useRouter } from "next/navigation"
 
-export default async function PQRSPage() {
-  const supabase = await createClient()
+export default function PQRSPage() {
+  const { data } = useApp()
+  const router = useRouter()
 
-  const [{ data: pqrsRequests }, { data: zones }] = await Promise.all([
-    supabase
-      .from("pqrs_requests")
-      .select(`
-        *,
-        zones (name, code),
-        personnel (first_name, last_name),
-        vehicles (license_plate)
-      `)
-      .order("created_at", { ascending: false }),
-    supabase.from("zones").select("*").order("name"),
-  ])
+  const handleReviewPQRS = (pqrs: any) => {
+    // Store the PQRS to review in sessionStorage for the dashboard
+    sessionStorage.setItem('reviewPQRS', JSON.stringify(pqrs))
+    // Redirect to dashboard
+    router.push('/dashboard')
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -37,7 +35,11 @@ export default async function PQRSPage() {
         </p>
       </div>
 
-      <PQRSManagement initialPQRS={pqrsRequests || []} zones={zones || []} />
+      <PQRSManagement
+        initialPQRS={data.pqrs}
+        zones={data.zones}
+        onReviewPQRS={handleReviewPQRS}
+      />
     </div>
   )
 }

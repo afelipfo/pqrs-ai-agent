@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Brain, Clock, Users, Car, MapPin, AlertTriangle, CheckCircle, Activity, Zap, TrendingUp } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { Brain, Clock, Users, Car, MapPin, AlertTriangle, CheckCircle, Activity, Zap, TrendingUp, Eye } from "lucide-react"
+import { useApp } from "@/lib/app-context"
 import { NotificationService, mockNotification } from "@/lib/notifications"
 
 interface DashboardProps {
@@ -31,8 +31,24 @@ export function AssignmentDashboard({
   const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false)
   const [isGeneratingAssignment, setIsGeneratingAssignment] = useState(false)
   const [assignmentResult, setAssignmentResult] = useState<any>(null)
+  const [isPersonnelSelectionOpen, setIsPersonnelSelectionOpen] = useState(false)
+  const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [isReviewMode, setIsReviewMode] = useState(false)
 
-  const supabase = createClient()
+  const { updatePQRS, updatePersonnel, updateVehicle, addAssignment, data } = useApp()
+
+  // Check for PQRS to review on component mount
+  useEffect(() => {
+    const reviewPQRS = sessionStorage.getItem('reviewPQRS')
+    if (reviewPQRS) {
+      const pqrs = JSON.parse(reviewPQRS)
+      setSelectedPQRS(pqrs)
+      setIsReviewMode(true)
+      setIsAssignmentDialogOpen(true)
+      sessionStorage.removeItem('reviewPQRS') // Clear it after use
+    }
+  }, [])
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -71,24 +87,39 @@ export function AssignmentDashboard({
     setAssignmentResult(null)
 
     try {
-      const response = await fetch("/api/ai-assignment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Mock AI assignment generation instead of calling API
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API delay
+
+      const mockAssignmentResult = {
+        recommendedPersonnel: [
+          {
+            personnelId: availablePersonnel[0]?.id || "1",
+            reasoning: "Personal más cercano a la zona con experiencia en inspecciones de seguridad",
+            confidence: 0.85,
+            estimatedResponseTime: 15
+          }
+        ],
+        recommendedVehicles: [
+          {
+            vehicleId: availableVehicles[0]?.id || "1",
+            reasoning: "Vehículo disponible más cercano al punto de asignación",
+            confidence: 0.90,
+            suitabilityScore: 9
+          }
+        ],
+        priorityAdjustment: {
+          originalPriority: "medium",
+          recommendedPriority: "high",
+          reasoning: "La solicitud requiere atención inmediata debido a la naturaleza del problema"
         },
-        body: JSON.stringify({
-          pqrsId,
-          autoExecute: false,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        setAssignmentResult(result.decision)
-      } else {
-        console.error("Assignment generation failed:", result.error)
+        additionalRecommendations: [
+          "Considerar equipo de respaldo para zonas de alto riesgo",
+          "Coordinar con autoridades locales si es necesario"
+        ]
       }
+
+      setAssignmentResult(mockAssignmentResult)
+      setIsPersonnelSelectionOpen(true)
     } catch (error) {
       console.error("Error generating assignment:", error)
     } finally {
@@ -97,92 +128,147 @@ export function AssignmentDashboard({
   }
 
   const handleExecuteAssignment = async () => {
-    if (!selectedPQRS || !assignmentResult) return
+    if (!selectedPQRS || !assignmentResult || !selectedPersonnel) return
 
     try {
-      const response = await fetch("/api/ai-assignment/execute", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          pqrsId: selectedPQRS.id,
-          personnelIds: assignmentResult.recommendedPersonnel.map((p: any) => p.personnelId),
-          vehicleIds: assignmentResult.recommendedVehicles.map((v: any) => v.vehicleId),
-          aiDecision: assignmentResult,
-        }),
+      // Update PQRS status to in_progress
+      updatePQRS(selectedPQRS.id, {
+        status: "in_progress",
+        personnel: selectedPersonnel,
+        updated_at: new Date().toISOString()
       })
 
-      const result = await response.json()
+      // Update personnel status to assigned
+      updatePersonnel(selectedPersonnel.id, {
+        status: "assigned",
+        updated_at: new Date().toISOString()
+      })
 
-      if (result.success) {
-        // Send notifications to assigned personnel
-        await sendAssignmentNotifications(selectedPQRS, assignmentResult)
-
-        setIsAssignmentDialogOpen(false)
-        setSelectedPQRS(null)
-        setAssignmentResult(null)
-        // Refresh the page to show updated data
-        window.location.reload()
+      // Update vehicle status if one was recommended
+      const recommendedVehicle = assignmentResult.recommendedVehicles[0]
+      if (recommendedVehicle) {
+        const vehicle = availableVehicles.find(v => v.id === recommendedVehicle.vehicleId)
+        if (vehicle) {
+          updateVehicle(vehicle.id, {
+            status: "assigned",
+            updated_at: new Date().toISOString()
+          })
+        }
       }
+
+      // Create and add the assignment
+      const assignment = {
+        id: Date.now().toString(),
+        pqrs_requests: selectedPQRS,
+        personnel: selectedPersonnel,
+        vehicles: availableVehicles.find(v => v.id === assignmentResult.recommendedVehicles[0]?.vehicleId),
+        ai_confidence_score: assignmentResult.recommendedPersonnel[0]?.confidence || 0.8,
+        assigned_at: new Date().toISOString(),
+        status: "active",
+      }
+      addAssignment(assignment)
+
+      // Send notification to selected personnel
+      await sendAssignmentNotifications(selectedPQRS, assignmentResult)
+
+      // Update personnel location to PQRS location (simulate movement)
+      updatePersonnelLocation(selectedPersonnel.id, selectedPQRS.zones)
+
+      setIsAssignmentDialogOpen(false)
+      setIsPersonnelSelectionOpen(false)
+      setSelectedPQRS(null)
+      setSelectedPersonnel(null)
+      setAssignmentResult(null)
+
+      alert("Asignación ejecutada exitosamente. El personal ha sido notificado y su ubicación actualizada.")
     } catch (error) {
       console.error("Error executing assignment:", error)
     }
   }
 
+  const handlePersonnelSelection = (personnel: any) => {
+    setSelectedPersonnel(personnel)
+  }
+
+  const updatePersonnelLocation = (personnelId: string, zone: any) => {
+    // Update personnel location in global context
+    updatePersonnel(personnelId, {
+      latitude: zone.latitude || zone.coordinates?.lat,
+      longitude: zone.longitude || zone.coordinates?.lng,
+      updated_at: new Date().toISOString()
+    })
+    console.log(`Updating personnel ${personnelId} location to zone:`, zone)
+  }
+
+  const handleCompletePQRS = async (pqrs: any) => {
+    try {
+      // Update PQRS status to resolved
+      updatePQRS(pqrs.id, {
+        status: "resolved",
+        updated_at: new Date().toISOString()
+      })
+
+      // Find the assigned personnel and set them back to available
+      // Also move them back to their original zone location
+      if (pqrs.personnel) {
+        const personnelZone = data.zones.find(z => z.id === pqrs.personnel.current_zone_id)
+        updatePersonnel(pqrs.personnel.id, {
+          status: "available",
+          latitude: personnelZone?.latitude || pqrs.personnel.latitude,
+          longitude: personnelZone?.longitude || pqrs.personnel.longitude,
+          updated_at: new Date().toISOString()
+        })
+      }
+
+      // Find the assigned vehicle and set it back to available
+      if (pqrs.vehicles) {
+        updateVehicle(pqrs.vehicles.id, {
+          status: "available",
+          updated_at: new Date().toISOString()
+        })
+      }
+
+      setIsAssignmentDialogOpen(false)
+      setSelectedPQRS(null)
+      setIsReviewMode(false)
+
+      alert("✅ PQRS completada exitosamente. El personal ha regresado a su zona base y los recursos han sido liberados.")
+    } catch (error) {
+      console.error("Error completing PQRS:", error)
+      alert("Error al completar la PQRS")
+    }
+  }
+
   const sendAssignmentNotifications = async (pqrs: any, assignmentResult: any) => {
     try {
-      // Get personnel details for notifications
-      const personnelPromises = assignmentResult.recommendedPersonnel.map(async (person: any) => {
-        const { data: personnelData } = await supabase
-          .from("personnel")
-          .select(`
-            *,
-            personnel_roles (name, department),
-            zones (name)
-          `)
-          .eq("id", person.personnelId)
-          .single()
-
-        return personnelData
-      })
-
-      const personnelDetails = await Promise.all(personnelPromises)
-
-      // Send notifications to each assigned personnel
-      for (const personnel of personnelDetails) {
-        if (personnel) {
-          const notificationData = NotificationService.generateAssignmentMessage(
-            pqrs,
-            personnel,
-            pqrs.zones
-          )
-
-          try {
-            // Try to send real notification
-            await NotificationService.sendAssignmentNotification(notificationData)
-          } catch (error) {
-            // Fallback to mock notification for development
-            console.log("Real notification failed, using mock notification:", error)
-            mockNotification(notificationData)
-          }
-        }
+      // Create notification for the selected personnel
+      const notification = {
+        id: Date.now().toString(),
+        type: "assignment",
+        title: "Nueva Asignación PQRS",
+        message: `Se le ha asignado la PQRS "${pqrs.title}" en zona ${pqrs.zones?.name}. Prioridad: ${pqrs.priority}`,
+        recipient: selectedPersonnel,
+        pqrs: pqrs,
+        timestamp: new Date().toISOString(),
+        read: false
       }
+
+      // Add to notifications state (in a real app, this would be sent to a notification service)
+      setNotifications(prev => [notification, ...prev])
+
+      // Mock notification display
+      alert(`✅ Notificación enviada a ${selectedPersonnel.first_name} ${selectedPersonnel.last_name}:
+      
+📋 PQRS: ${pqrs.title}
+📍 Zona: ${pqrs.zones?.name}
+⚡ Prioridad: ${pqrs.priority}
+
+El personal ha sido notificado y su ubicación se actualizará en el mapa.`)
+
+      console.log("Notification sent:", notification)
     } catch (error) {
       console.error("Error sending assignment notifications:", error)
-      // Fallback to mock notifications
-      assignmentResult.recommendedPersonnel.forEach((person: any) => {
-        const mockData = {
-          to_email: `personnel${person.personnelId}@example.com`,
-          personnel_name: `Personal ${person.personnelId}`,
-          pqrs_title: pqrs.title,
-          pqrs_type: pqrs.type,
-          pqrs_priority: pqrs.priority,
-          zone_name: pqrs.zones?.name,
-          assignment_details: `Se le ha asignado la PQRS "${pqrs.title}" para atención inmediata.`
-        }
-        mockNotification(mockData)
-      })
+      alert("Error al enviar notificación, pero la asignación fue creada.")
     }
   }
 
@@ -478,10 +564,24 @@ export function AssignmentDashboard({
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              Asignación Inteligente con IA
+              {isReviewMode ? (
+                <>
+                  <Eye className="h-5 w-5 text-blue-600" />
+                  Revisión de PQRS
+                </>
+              ) : (
+                <>
+                  <Brain className="h-5 w-5 text-purple-600" />
+                  Asignación Inteligente con IA
+                </>
+              )}
             </DialogTitle>
-            <DialogDescription>{selectedPQRS && `Generando asignación para: ${selectedPQRS.title}`}</DialogDescription>
+            <DialogDescription>
+              {selectedPQRS && isReviewMode
+                ? `Revisando PQRS asignada: ${selectedPQRS.title}`
+                : selectedPQRS && `Generando asignación para: ${selectedPQRS.title}`
+              }
+            </DialogDescription>
           </DialogHeader>
 
           {selectedPQRS && (
@@ -489,7 +589,9 @@ export function AssignmentDashboard({
               {/* PQRS Details */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Detalles de la Solicitud</CardTitle>
+                  <CardTitle className="text-lg">
+                    {isReviewMode ? "Revisión de PQRS Asignada" : "Detalles de la Solicitud"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -506,9 +608,21 @@ export function AssignmentDashboard({
                       <Badge className={getPriorityColor(selectedPQRS.priority)}>{selectedPQRS.priority}</Badge>
                     </div>
                     <div>
+                      <span className="text-muted-foreground">Estado: </span>
+                      <Badge className={getPriorityColor(selectedPQRS.status === "in_progress" ? "medium" : "low")}>
+                        {selectedPQRS.status === "in_progress" ? "En Progreso" : selectedPQRS.status}
+                      </Badge>
+                    </div>
+                    <div>
                       <span className="text-muted-foreground">Zona: </span>
                       <span className="font-medium">{selectedPQRS.zones?.name}</span>
                     </div>
+                    {selectedPQRS.personnel && (
+                      <div>
+                        <span className="text-muted-foreground">Personal Asignado: </span>
+                        <span className="font-medium">{selectedPQRS.personnel.first_name} {selectedPQRS.personnel.last_name}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="mt-4">
                     <span className="text-muted-foreground">Descripción: </span>
@@ -517,8 +631,8 @@ export function AssignmentDashboard({
                 </CardContent>
               </Card>
 
-              {/* Generate Assignment Button */}
-              {!assignmentResult && (
+              {/* Generate Assignment Button - Only show if not in review mode */}
+              {!assignmentResult && !isReviewMode && (
                 <div className="text-center">
                   <Button
                     onClick={() => handleGenerateAssignment(selectedPQRS.id)}
@@ -537,6 +651,35 @@ export function AssignmentDashboard({
                       </>
                     )}
                   </Button>
+                </div>
+              )}
+
+              {/* Review Actions - Only show in review mode */}
+              {isReviewMode && !assignmentResult && (
+                <div className="text-center space-y-4">
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="font-semibold text-blue-800 mb-2">Acciones de Revisión</h3>
+                    <p className="text-sm text-blue-700 mb-4">
+                      Como personal asignado, puedes completar la PQRS una vez resuelta o continuar con acciones adicionales.
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                      <Button
+                        onClick={() => handleCompletePQRS(selectedPQRS)}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Marcar como Resuelta
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleGenerateAssignment(selectedPQRS.id)}
+                        disabled={isGeneratingAssignment}
+                      >
+                        <Brain className="h-4 w-4 mr-2" />
+                        Generar Nueva Asignación
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -637,13 +780,14 @@ export function AssignmentDashboard({
                             setIsAssignmentDialogOpen(false)
                             setSelectedPQRS(null)
                             setAssignmentResult(null)
+                            setIsReviewMode(false)
                           }}
                         >
                           Cancelar
                         </Button>
-                        <Button onClick={handleExecuteAssignment}>
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Ejecutar Asignación
+                        <Button onClick={() => setIsPersonnelSelectionOpen(true)}>
+                          <Users className="h-4 w-4 mr-2" />
+                          Seleccionar Personal
                         </Button>
                       </div>
                     </CardContent>
@@ -652,6 +796,72 @@ export function AssignmentDashboard({
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Personnel Selection Dialog */}
+      <Dialog open={isPersonnelSelectionOpen} onOpenChange={setIsPersonnelSelectionOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Seleccionar Personal para Asignación</DialogTitle>
+            <DialogDescription>
+              Selecciona el personal que se asignará a esta solicitud PQRS
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              {availablePersonnel.map((person) => (
+                <div
+                  key={person.id}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedPersonnel?.id === person.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => handlePersonnelSelection(person)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">
+                        {person.first_name} {person.last_name}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {person.personnel_roles?.name} - {person.personnel_roles?.department}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Zona actual: {person.zones?.name}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="outline" className="bg-green-50 text-green-700">
+                        Disponible
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsPersonnelSelectionOpen(false)
+                  setIsReviewMode(false)
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleExecuteAssignment}
+                disabled={!selectedPersonnel}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Enviar Notificación y Asignar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

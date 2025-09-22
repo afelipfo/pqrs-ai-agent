@@ -1,21 +1,86 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/server"
 import { PersonnelManagement } from "@/components/personnel-management"
 
-export default async function PersonnelPage() {
-  const supabase = await createClient()
+export default function PersonnelPage() {
+  const [personnel, setPersonnel] = useState<any[]>([])
+  const [roles, setRoles] = useState<any[]>([])
+  const [zones, setZones] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const { data: personnel } = await supabase.from("personnel").select(`
-    *,
-    personnel_roles (name, department),
-    zones (name)
-  `).order("last_name")
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const response = await fetch('/registro-temporal.json')
+        const tempData = await response.json()
 
-  const { data: roles } = await supabase.from("personnel_roles").select("*").order("name")
+        // Mock roles data
+        const mockRoles = [
+          { id: "1", name: "Inspector de Seguridad", department: "Seguridad" },
+          { id: "2", name: "Técnica de Mantenimiento", department: "Mantenimiento" },
+          { id: "3", name: "Supervisor", department: "Administración" },
+        ]
 
-  const { data: zones } = await supabase.from("zones").select("*").order("name")
+        // Map temporary zones data
+        const mappedZones = tempData.zones.map((zone: any) => ({
+          id: zone.id.toString(),
+          name: zone.name,
+          code: zone.district,
+        }))
+
+        // Map temporary personnel data to match component expectations
+        const mappedPersonnel = tempData.personnel.map((person: any, index: number) => {
+          const nameParts = person.name.split(" ")
+          const firstName = nameParts[0]
+          const lastName = nameParts.slice(1).join(" ")
+
+          return {
+            id: person.id.toString(),
+            employee_id: `EMP${String(person.id).padStart(3, "0")}`,
+            first_name: firstName,
+            last_name: lastName,
+            role_id: mockRoles.find(r => r.name === person.role)?.id || "1",
+            status: person.status === "Activo" ? "available" : "off_duty",
+            current_zone_id: mappedZones.find((z: any) => z.name === person.zone)?.id,
+            shift_start: "08:00",
+            shift_end: "17:00",
+            certifications: null,
+            contact_info: { phone: person.phone },
+            latitude: person.coordinates.lat,
+            longitude: person.coordinates.lng,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            personnel_roles: mockRoles.find(r => r.name === person.role) || mockRoles[0],
+            zones: mappedZones.find((z: any) => z.name === person.zone),
+          }
+        })
+
+        setPersonnel(mappedPersonnel)
+        setRoles(mockRoles)
+        setZones(mappedZones)
+      } catch (error) {
+        console.error("Error loading personnel data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Cargando datos...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -33,9 +98,9 @@ export default async function PersonnelPage() {
       </div>
 
       <PersonnelManagement
-        initialPersonnel={personnel || []}
-        roles={roles || []}
-        zones={zones || []}
+        initialPersonnel={personnel}
+        roles={roles}
+        zones={zones}
       />
     </div>
   )

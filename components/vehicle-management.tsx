@@ -86,32 +86,26 @@ export function VehicleManagement({ initialVehicles, vehicleTypes, zones }: Vehi
   const handleCreateVehicle = async (formData: FormData) => {
     try {
       const newVehicle = {
+        id: (vehicles.length + 1).toString(),
         license_plate: formData.get("license_plate") as string,
         vehicle_type_id: formData.get("vehicle_type_id") as string,
         status: formData.get("status") as string,
-        current_zone_id: formData.get("current_zone_id") as string || null,
+        current_zone_id: formData.get("current_zone_id") as string || undefined,
         fuel_level: Number.parseFloat(formData.get("fuel_level") as string) || 100,
-        maintenance_due: formData.get("maintenance_due") as string || null,
-        latitude: Number.parseFloat(formData.get("latitude") as string) || null,
-        longitude: Number.parseFloat(formData.get("longitude") as string) || null,
+        maintenance_due: formData.get("maintenance_due") as string || undefined,
+        latitude: formData.get("latitude") ? Number.parseFloat(formData.get("latitude") as string) : undefined,
+        longitude: formData.get("longitude") ? Number.parseFloat(formData.get("longitude") as string) : undefined,
+        last_location: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        vehicle_types: vehicleTypes.find(vt => vt.id === formData.get("vehicle_type_id")),
+        zones: zones.find(z => z.id === formData.get("current_zone_id")),
       }
 
       console.log("Creating vehicle with data:", newVehicle)
 
-      const { data, error } = await supabase.from("vehicles").insert([newVehicle]).select(`
-        *,
-        vehicle_types (name, category),
-        zones (name)
-      `).single()
-
-      if (error) {
-        console.error("Error creating vehicle:", error)
-        alert(`Error al crear vehículo: ${error.message}`)
-        return
-      }
-
-      console.log("Vehicle created successfully:", data)
-      setVehicles([...vehicles, data])
+      // Add to local state instead of Supabase
+      setVehicles([...vehicles, newVehicle])
       setIsCreateDialogOpen(false)
       alert("Vehículo creado exitosamente")
     } catch (error) {
@@ -124,34 +118,22 @@ export function VehicleManagement({ initialVehicles, vehicleTypes, zones }: Vehi
     if (!selectedVehicle) return
 
     const updatedVehicle = {
+      ...selectedVehicle,
       license_plate: formData.get("license_plate") as string,
       vehicle_type_id: formData.get("vehicle_type_id") as string,
       status: formData.get("status") as string,
-      current_zone_id: formData.get("current_zone_id") as string || null,
+      current_zone_id: formData.get("current_zone_id") as string || undefined,
       fuel_level: Number.parseFloat(formData.get("fuel_level") as string) || 100,
-      maintenance_due: formData.get("maintenance_due") as string || null,
-      latitude: Number.parseFloat(formData.get("latitude") as string) || null,
-      longitude: Number.parseFloat(formData.get("longitude") as string) || null,
+      maintenance_due: formData.get("maintenance_due") as string || undefined,
+      latitude: formData.get("latitude") ? Number.parseFloat(formData.get("latitude") as string) : undefined,
+      longitude: formData.get("longitude") ? Number.parseFloat(formData.get("longitude") as string) : undefined,
       updated_at: new Date().toISOString(),
+      vehicle_types: vehicleTypes.find(vt => vt.id === formData.get("vehicle_type_id")),
+      zones: zones.find(z => z.id === formData.get("current_zone_id")),
     }
 
-    const { data, error } = await supabase
-      .from("vehicles")
-      .update(updatedVehicle)
-      .eq("id", selectedVehicle.id)
-      .select(`
-        *,
-        vehicle_types (name, category),
-        zones (name)
-      `)
-      .single()
-
-    if (error) {
-      console.error("Error updating vehicle:", error)
-      return
-    }
-
-    setVehicles(vehicles.map((vehicle) => (vehicle.id === selectedVehicle.id ? data : vehicle)))
+    // Update local state instead of Supabase
+    setVehicles(vehicles.map((vehicle) => (vehicle.id === selectedVehicle.id ? updatedVehicle : vehicle)))
     setIsEditDialogOpen(false)
     setSelectedVehicle(null)
   }
@@ -253,7 +235,7 @@ export function VehicleManagement({ initialVehicles, vehicleTypes, zones }: Vehi
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="latitude">Latitud</Label>
+                  <Label htmlFor="latitude">Latitud (opcional)</Label>
                   <Input
                     id="latitude"
                     name="latitude"
@@ -263,7 +245,7 @@ export function VehicleManagement({ initialVehicles, vehicleTypes, zones }: Vehi
                   />
                 </div>
                 <div>
-                  <Label htmlFor="longitude">Longitud</Label>
+                  <Label htmlFor="longitude">Longitud (opcional)</Label>
                   <Input
                     id="longitude"
                     name="longitude"
